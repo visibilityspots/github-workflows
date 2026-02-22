@@ -1,0 +1,29 @@
+name: docker-hub-description
+
+on:
+  push:
+    tags:
+      - '*'
+  workflow_call:
+    secrets:
+      DOCKERHUB_TOKEN:
+        required: true
+
+env:
+  DOCKERHUB_USERNAME: ${{ vars.DOCKERHUB_USERNAME }}
+  DOCKERHUB_REPOSITORY: ${{ vars.DOCKERHUB_REPOSITORY }}
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Update docker hub description
+        uses: peter-evans/dockerhub-description@v5
+        with:
+          username: ${{ env.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ github.repository_owner }}/${{ env.DOCKERHUB_REPOSITORY }}
+          short-description: ${{ github.event.repository.description }}
