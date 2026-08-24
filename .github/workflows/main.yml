@@ -9,6 +9,21 @@ on:
       platforms:
         required: false
         type: string
+      run_args:
+        description: >-
+          Extra arguments for the container runtime, inserted before the image in
+          the dgoss run command. Use it to pass -e VARS the image needs to start,
+          or --entrypoint for images whose own entrypoint exits immediately and
+          would leave nothing running for goss to test.
+        required: false
+        type: string
+      goss_cmd:
+        description: >-
+          Arguments passed to the container itself, after the image. Takes
+          precedence over the GOSS_CMD secret; use this when the arguments are
+          not sensitive.
+        required: false
+        type: string
     secrets:
       DOCKERHUB_TOKEN:
         required: true
@@ -38,7 +53,7 @@ jobs:
       - name: Execute dgoss run on ${{ env.DOCKERHUB_REPOSITORY }}:dev image
         env:
           GOSS_FILES_STRATEGY: cp
-        run: dgoss run ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:dev ${{ secrets.GOSS_CMD }}
+        run: dgoss run ${{ inputs.run_args }} ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:dev ${{ inputs.goss_cmd || secrets.GOSS_CMD }}
 
   deploy:
     needs: test
