@@ -62,6 +62,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          # full history and tags, to find the previous release tag below
+          fetch-depth: 0
 
       - uses: docker/login-action@v3.7.0
         with:
@@ -85,12 +88,27 @@ jobs:
           cache-from: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:buildcache
           cache-to: type=registry,ref=${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:buildcache,mode=max
 
+      # changelog-action's own `tag` mode asks GitHub for the newest tag by
+      # TAG_COMMIT_DATE and fails when that is not the tag being built. GitHub
+      # does not always order them by commit date: on dockerfile-baikal it put
+      # v0.12.1 above the newer v0.12.1-1 and the release step never ran. So
+      # the previous tag comes from git instead: the nearest tag reachable from
+      # the tagged commit's parent, or the root commit for a first release.
+      - name: Find the previous tag
+        id: previous
+        run: |
+          previous=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null) ||
+            previous=$(git rev-list --max-parents=0 "${GITHUB_REF_NAME}" | tail -n 1)
+          echo "previous ${previous} -> ${GITHUB_REF_NAME}"
+          echo "tag=${previous}" >> "$GITHUB_OUTPUT"
+
       - name: Generate CHANGELOG
         id: changelog
         uses: requarks/changelog-action@v1
         with:
           token: ${{ github.token }}
-          tag: ${{ github.ref_name }}
+          fromTag: ${{ github.ref_name }}
+          toTag: ${{ steps.previous.outputs.tag }}
 
       - name: Create github ${{ github.ref_name }} release
         uses: ncipollo/release-action@v1
