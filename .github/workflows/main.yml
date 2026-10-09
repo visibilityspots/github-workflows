@@ -46,9 +46,11 @@ jobs:
       - name: Build ${{ env.DOCKERHUB_REPOSITORY }}:dev image
         run: docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:dev .
 
-      - uses: e1himself/goss-installation-action@v1.3.0
+      # our own action next to this file; a reusable workflow cannot use ./
+      # (that would resolve in the calling repo), so it is addressed in full
+      - uses: visibilityspots/github-workflows/.github/actions/setup-goss@main
         with:
-          version: 'v0.4.9'
+          version: v0.4.10
 
       - name: Execute dgoss run on ${{ env.DOCKERHUB_REPOSITORY }}:dev image
         env:

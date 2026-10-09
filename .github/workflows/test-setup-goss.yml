@@ -1,0 +1,41 @@
+name: test-setup-goss
+
+# Proves the setup-goss action on a real runner without cutting an image
+# release: install, then dgoss a throwaway container.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/actions/setup-goss/**
+      - .github/workflows/test-setup-goss.yml
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: ./.github/actions/setup-goss
+
+      - name: dgoss a throwaway container
+        env:
+          GOSS_FILES_STRATEGY: cp
+        run: |
+          goss --version | grep -Fx 'goss version 0.4.10'
+          mkdir -p /tmp/goss-test && cd /tmp/goss-test
+          printf 'file:\n  /etc/alpine-release:\n    exists: true\n' > goss.yaml
+          dgoss run --entrypoint sleep alpine:3.22 30
+
+      - name: an unpinned version is refused
+        id: refused
+        continue-on-error: true
+        uses: ./.github/actions/setup-goss
+        with:
+          version: v0.4.9
+
+      - name: check the refusal
+        run: test "${{ steps.refused.outcome }}" = failure

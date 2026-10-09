@@ -1,0 +1,64 @@
+name: Setup goss
+description: >-
+  Installs goss and dgoss from the goss-org release, verified against sha256
+  hashes pinned in this file, and puts both on the PATH.
+
+# Why our own action: e1himself/goss-installation-action is node20 and only
+# knows the pre-0.4.10 asset name (goss-linux-amd64, 404 since v0.4.10, which
+# ships goreleaser tarballs). The hashes live here instead of being read from
+# the release's own checksum files, so a replaced release asset fails the job
+# instead of being installed next to the DOCKERHUB_TOKEN.
+#
+# Adding a version: download the tarballs and dgoss, compare their sha256 with
+# goss_<version>_SHA256SUMS and dgoss.sha256, and add a case below.
+
+inputs:
+  version:
+    description: goss release tag; only versions with pinned hashes below are accepted
+    required: false
+    default: v0.4.10
+
+runs:
+  using: composite
+  steps:
+    - name: Install goss ${{ inputs.version }}
+      shell: bash
+      env:
+        GOSS_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        case "$(uname -m)" in
+          x86_64) arch=x86_64 ;;
+          aarch64) arch=arm64 ;;
+          *) echo "::error::setup-goss: unsupported runner architecture $(uname -m)"; exit 1 ;;
+        esac
+
+        case "${GOSS_VERSION}/${arch}" in
+          v0.4.10/x86_64) goss_sha=26e365428946294bcec0c61d867bb3c8349f39feb3d0e6f59084e98632785cc7 ;;
+          v0.4.10/arm64)  goss_sha=90a59612b4d67d9f1a9038634c000790136bb82526a69de1e81ac075c2f6d2c6 ;;
+          *) echo "::error::setup-goss: no pinned hash for goss ${GOSS_VERSION} on ${arch}"; exit 1 ;;
+        esac
+        case "${GOSS_VERSION}" in
+          v0.4.10) dgoss_sha=3bb3ac9df33eeab8ce71a35763f4a69582eceb7db7bf02b4d0a551e72c7a888d ;;
+        esac
+
+        bin="${RUNNER_TEMP}/setup-goss/bin"
+        tmp="${RUNNER_TEMP}/setup-goss/download"
+        mkdir -p "${bin}" "${tmp}"
+
+        base="https://github.com/goss-org/goss/releases/download/${GOSS_VERSION}"
+        tarball="goss_${GOSS_VERSION#v}_linux_${arch}.tar.gz"
+        curl -fsSL -o "${tmp}/${tarball}" "${base}/${tarball}"
+        curl -fsSL -o "${tmp}/dgoss" "${base}/dgoss"
+
+        echo "${goss_sha}  ${tmp}/${tarball}" | sha256sum -c -
+        echo "${dgoss_sha}  ${tmp}/dgoss" | sha256sum -c -
+
+        tar -xzf "${tmp}/${tarball}" -C "${tmp}" goss
+        install -m 0755 "${tmp}/goss" "${bin}/goss"
+        install -m 0755 "${tmp}/dgoss" "${bin}/dgoss"
+        rm -rf "${tmp}"
+
+        echo "${bin}" >> "${GITHUB_PATH}"
+        "${bin}/goss" --version
