@@ -68,7 +68,7 @@ jobs:
           # full history and tags, to find the previous release tag below
           fetch-depth: 0
 
-      - uses: docker/login-action@v3.7.0
+      - uses: docker/login-action@v4.7.0
         with:
           username: ${{ env.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
