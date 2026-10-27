@@ -24,9 +24,20 @@ on:
           not sensitive.
         required: false
         type: string
+      pr_run_args:
+        description: >-
+          Replaces run_args on pull_request runs. Dependabot PRs get no secrets,
+          so an image whose tag run needs GOSS_CMD sets a secret-free test here.
+        required: false
+        type: string
+      pr_goss_cmd:
+        description: Replaces goss_cmd and GOSS_CMD on pull_request runs.
+        required: false
+        type: string
     secrets:
+      # not required: pull_request runs only test, and Dependabot PRs get no secrets
       DOCKERHUB_TOKEN:
-        required: true
+        required: false
       GOSS_CMD:
         required: false
 env:
@@ -35,16 +46,23 @@ env:
   DOCKERHUB_PLATFORMS: ${{ inputs.platforms || 'linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64' }}
 
 jobs:
+  # Runs on tags and on pull requests. A PR tests its own head; a tag tests main
+  # (see the github-workflow skill: test and deploy check out different refs).
+  # The image name is local only, so it does not depend on repository vars,
+  # which a Dependabot PR run may not see.
   test:
     runs-on: ubuntu-24.04
+
+    env:
+      TEST_IMAGE: ci/${{ github.event.repository.name }}:dev
 
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || 'main' }}
 
-      - name: Build ${{ env.DOCKERHUB_REPOSITORY }}:dev image
-        run: docker build -t ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:dev .
+      - name: Build ${{ env.TEST_IMAGE }} image
+        run: docker build -t ${{ env.TEST_IMAGE }} .
 
       # our own action next to this file; a reusable workflow cannot use ./
       # (that would resolve in the calling repo), so it is addressed in full
@@ -52,13 +70,19 @@ jobs:
         with:
           version: v0.4.10
 
-      - name: Execute dgoss run on ${{ env.DOCKERHUB_REPOSITORY }}:dev image
+      - name: Execute dgoss run on ${{ env.TEST_IMAGE }} image
         env:
           GOSS_FILES_STRATEGY: cp
-        run: dgoss run ${{ inputs.run_args }} ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:dev ${{ inputs.goss_cmd || secrets.GOSS_CMD }}
+        run: >-
+          dgoss run
+          ${{ github.event_name == 'pull_request' && inputs.pr_run_args || inputs.run_args }}
+          ${{ env.TEST_IMAGE }}
+          ${{ github.event_name == 'pull_request' && inputs.pr_goss_cmd || inputs.goss_cmd || secrets.GOSS_CMD }}
 
   deploy:
     needs: test
+    # a pull request only tests; publishing stays tag-only
+    if: startsWith(github.ref, 'refs/tags/')
 
     runs-on: ubuntu-24.04
 
