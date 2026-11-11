@@ -148,7 +148,7 @@ jobs:
         with:
           makeLatest: true
           allowUpdates: true
-          body: ${{ steps.changelog.outputs.changes || 'First release.' }}
+          body: ${{ steps.changelog.outputs.changes || (steps.previous.outputs.empty == 'true' && 'First release.' || 'No changes of an included commit type (feat, fix, perf, refactor, test, chore).') }}
           token: ${{ github.token }}
 
       - name: Commit updated CHANGELOG.md for ${{ github.ref_name }}
