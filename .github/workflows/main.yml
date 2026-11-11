@@ -127,9 +127,16 @@ jobs:
             previous=$(git rev-list --max-parents=0 "${GITHUB_REF_NAME}" | tail -n 1)
           echo "previous ${previous} -> ${GITHUB_REF_NAME}"
           echo "tag=${previous}" >> "$GITHUB_OUTPUT"
+          # A first tag on the root commit leaves an empty range, and
+          # changelog-action fails on that ("Couldn't find any commits").
+          if [ "$(git rev-parse "${previous}^{commit}")" = "$(git rev-parse "${GITHUB_REF_NAME}^{commit}")" ]; then
+            echo "first release on the root commit, no changelog range"
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Generate CHANGELOG
         id: changelog
+        if: steps.previous.outputs.empty != 'true'
         uses: requarks/changelog-action@v1
         with:
           token: ${{ github.token }}
@@ -141,7 +148,7 @@ jobs:
         with:
           makeLatest: true
           allowUpdates: true
-          body: ${{ steps.changelog.output.changes }}
+          body: ${{ steps.changelog.outputs.changes || 'First release.' }}
           token: ${{ github.token }}
 
       - name: Commit updated CHANGELOG.md for ${{ github.ref_name }}
