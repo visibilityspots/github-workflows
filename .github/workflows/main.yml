@@ -142,13 +142,17 @@ jobs:
           token: ${{ github.token }}
           fromTag: ${{ github.ref_name }}
           toTag: ${{ steps.previous.outputs.tag }}
+          # The action's default also excludes `build`, but every version bump
+          # in these image repos is a `build(deps):` commit, so a bump-only
+          # release would never reach the CHANGELOG.
+          excludeTypes: docs,style,other
 
       - name: Create github ${{ github.ref_name }} release
         uses: ncipollo/release-action@v1
         with:
           makeLatest: true
           allowUpdates: true
-          body: ${{ steps.changelog.outputs.changes || (steps.previous.outputs.empty == 'true' && 'First release.' || 'No changes of an included commit type (feat, fix, perf, refactor, test, chore).') }}
+          body: ${{ steps.changelog.outputs.changes || (steps.previous.outputs.empty == 'true' && 'First release.' || 'No changes of an included commit type (feat, fix, perf, refactor, test, build, chore).') }}
           token: ${{ github.token }}
 
       - name: Commit updated CHANGELOG.md for ${{ github.ref_name }}
